@@ -1,0 +1,5 @@
+/target
+*.exe
+*.stl
+*.pdb
+*.lock
