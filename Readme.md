@@ -8,8 +8,8 @@ Analyse volume for .stl files
 
 # Todo
 
-* [] Make it a nice CLI
-* [] Implement quickhull
-* [] Implement minimal box volume
+* [ ] Make it a nice CLI
+* [ ] Implement quickhull
+* [ ] Implement minimal box volume
 * [x] Mesh volume
 * [x] Box volume
