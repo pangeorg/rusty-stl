@@ -1,10 +1,18 @@
 // Read .stl files and calculate volumes
 // IO components mostly copied from 'https://docs.rs/stl_io/latest/stl_io/"
 
+use std::fmt::{self, Display};
 use std::fs::OpenOptions;
 use std::io::Result;
 
+use clap::Parser;
 use stl_io::{IndexedMesh, Vector};
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    paths: Vec<std::path::PathBuf>,
+}
 
 #[derive(Debug)]
 struct BoundingBox {
@@ -18,7 +26,9 @@ struct BoundingBox {
 
 impl BoundingBox {
     pub fn volume(&self) -> f32 {
-        (self.xmax - self.xmin).abs() * (self.ymax - self.ymin).abs() * (self.zmax - self.zmin).abs()
+        (self.xmax - self.xmin).abs()
+            * (self.ymax - self.ymin).abs()
+            * (self.zmax - self.zmin).abs()
     }
 }
 
@@ -44,8 +54,6 @@ impl From<&IndexedMesh> for BoundingBox {
         bbox
     }
 }
-
-
 
 fn volume(mesh: &IndexedMesh) -> f32 {
     let mut sum = 0.0;
@@ -79,18 +87,86 @@ fn vol_triangle_sgn(p1: &Vector<f32>, p2: &Vector<f32>, p3: &Vector<f32>) -> f32
     vector_dot(p1, &c) / 6.0
 }
 
+type FileList = Vec<std::path::PathBuf>;
+
+fn get_filenames(args: Args) -> FileList {
+    use glob::glob;
+    let mut files: FileList = Vec::new();
+
+    for path in args.paths.iter() {
+        if path.is_dir() {
+            let pstr = path.to_str().unwrap();
+            let pstar = format!("{pstr}/*.stl");
+            for entry in glob(&pstar).unwrap() {
+                match entry {
+                    Ok(p) => files.push(p),
+                    Err(e) => println!("{:?}", e),
+                }
+            }
+        }
+        if path.is_file() {
+            files.push(path.to_path_buf());
+        }
+    }
+    files
+}
+
+struct VolumeInfo {
+    filename: String,
+    mesh: f32,
+    bounding_box: f32,
+}
+
+impl Display for VolumeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{:<30}{:<7.2}{:<7.2}",
+            self.filename,
+            self.mesh / 1e6,
+            self.bounding_box / 1e6
+        )
+    }
+}
+
+impl From<&IndexedMesh> for VolumeInfo {
+    fn from(mesh: &IndexedMesh) -> Self {
+        let info = VolumeInfo {
+            filename: String::new(),
+            mesh: volume(mesh),
+            bounding_box: BoundingBox::from(mesh).volume(),
+        };
+        info
+    }
+}
+
+fn process_files(files: FileList) -> Vec<VolumeInfo> {
+    let mut infos: Vec<VolumeInfo> = Vec::new();
+    for path in files.iter() {
+        match OpenOptions::new().read(true).open(path) {
+            Err(e) => println!("Error opening file {} - {}", path.display(), e),
+            Ok(mut file) => match stl_io::read_stl(&mut file) {
+                Err(e) => println!("Error opening file {} - {}", path.display(), e),
+                Ok(stl) => {
+                    let mut info = VolumeInfo::from(&stl);
+                    // this is fuckin ugly
+                    info.filename = path.file_name().unwrap().to_str().unwrap().to_string();
+                    infos.push(info);
+                }
+            },
+        }
+    }
+    infos
+}
 
 fn main() -> Result<()> {
-    let mut file = OpenOptions::new()
-        .read(true)
-        .open("test-steering-wheel.stl")?;
-    let stl = stl_io::read_stl(&mut file)?;
-    let bbox = BoundingBox::from(&stl);
-    println!("Box:    {:.?}", bbox);
-    let mesh_vol = volume(&stl);
-    let bbox_vol = bbox.volume();
+    let args = Args::parse();
+    let files = get_filenames(args);
+    let volumes = process_files(files);
 
-    println!("Mesh Volume:    {}", mesh_vol / 1e6);
-    println!("Box Volume:     {}", bbox_vol / 1e6);
+    for vol in volumes.iter() {
+        println!("{}", vol);
+    }
+
     Ok(())
 }
