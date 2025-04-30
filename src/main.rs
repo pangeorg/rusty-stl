@@ -2,7 +2,7 @@ mod geometry;
 use rayon::prelude::*;
 use std::fs::OpenOptions;
 use std::io::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use geometry::{StlMesh, VolumeInfo};
@@ -66,19 +66,40 @@ fn main() -> Result<()> {
     let volumes = process_files(files.as_slice());
 
     println!(
-        "{:<70} | {:<20} | {:<20} | {:<20} | {:<20}",
-        "Filename", "Mesh volume", "Bounding box volume", "Convex volume", "Thickness"
+        "{:<70} | {:<20} | {:<20} | {:<20} | {:<20} | {:<20} | {:<20}",
+        "Filename",
+        "Mesh volume",
+        "Bounding box volume",
+        "Convex volume",
+        "Thickness (med)",
+        "Thickness (avg)",
+        "Thickness (stdev)"
     );
 
     for (path, vol) in volumes.iter() {
-        let s = path.file_name().unwrap().to_str().unwrap();
+        let fname = path.file_name().unwrap();
+        let s = fname.to_str().unwrap();
+
+        //let t: Vec<u8> = vol
+        //    .thickness
+        //    .thicknesses
+        //    .iter()
+        //    .map(|f| f.to_ne_bytes())
+        //    .flatten()
+        //    .collect();
+        //
+        //let p = Path::new("data.array");
+        //_ = std::fs::write(p, t);
+
         println!(
-            "{:<70} | {:<20.2} | {:<20.2} | {:<20.2} | {:<20.2}",
+            "{:<70} | {:<20.2} | {:<20.2} | {:<20.2} | {:<20.2} | {:<20.2} | {:<20.2}",
             s,
             vol.mesh / 1e6,
             vol.bounding_box / 1e6,
             vol.convex_volume / 1e6,
-            vol.thickness
+            vol.thickness.median,
+            vol.thickness.avg,
+            vol.thickness.std_dev,
         );
     }
 
